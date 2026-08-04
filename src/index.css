@@ -1,0 +1,182 @@
+:root {
+  --font-sans: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Single theme: white surface, one green accent, no gradients. */
+  --page-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f9f7;
+
+  --accent: #10b981;
+  /* Same green darkened only where it has to sit as text on white —
+     #10b981 on white is ~2.5:1 and would be unreadable at body sizes. */
+  --accent-ink: #047857;
+  --accent-soft: rgba(16, 185, 129, 0.09);
+  --on-accent: #04231a;
+
+  --text-strong: #0a0f0d;
+  --text: #1a211e;
+  --text-body: #3d4b45;
+  --text-muted: #5b6b64;
+
+  --border: rgba(10, 15, 13, 0.1);
+  --border-hover: rgba(16, 185, 129, 0.55);
+  --danger: #dc2626;
+
+  /* Deep green footer surface. White on this reads ~13:1, and the bright
+     --accent on it ~5.5:1, so both text and links clear AA. */
+  --footer-bg: #04352a;
+  --footer-text: rgba(255, 255, 255, 0.74);
+  --footer-strong: #ffffff;
+  --footer-border: rgba(255, 255, 255, 0.14);
+  --shadow: 0 18px 50px rgba(10, 15, 13, 0.07);
+
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-pill: 999px;
+
+  --step: 1.5rem;
+  --transition: 0.2s ease;
+  /* Shared by .hero-card and the full-width .hero-glow behind it. */
+  --hero-height: min(100svh, 900px);
+
+  color-scheme: light;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+/* Locked while the loader or the mobile nav drawer is on screen. */
+body.is-loading,
+body.nav-open {
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ---------- Scrollbar ---------- */
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--surface-2);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--surface-2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-ink);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--surface-2);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---------- Typography ---------- */
+
+/* The design is built on heavy sans weights throughout. */
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-strong);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  line-height: 1.06;
+}
+
+h2 {
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* The sticky topbar would otherwise cover the top of every anchor target. */
+:target,
+section[id] {
+  scroll-margin-top: 92px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

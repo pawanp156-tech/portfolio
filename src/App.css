@@ -1,0 +1,1587 @@
+.theme-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Blurred green-into-white wash behind the hero. Several soft discs rather than
+   one, so the falloff does not read as a single flat circle. Every stop ends
+   fully transparent, so there is no hard edge where the layer stops.
+   Lives outside .container so it spans the full page width, and uses width:100%
+   rather than 100vw so a visible scrollbar cannot cause horizontal overflow. */
+.hero-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* Taller than the hero so the scroll parallax cannot pull the layer's bottom
+     edge up into view. */
+  height: calc(var(--hero-height) + 20rem);
+  /* Negative so it can never paint over unpositioned content further down. */
+  z-index: -1;
+  pointer-events: none;
+  /* Guarantees a soft fade out at the bottom whatever the gradients do, so no
+     hard horizontal line appears as the page scrolls. */
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  background:
+    radial-gradient(38% 46% at 72% 30%, rgba(16, 185, 129, 0.5), rgba(16, 185, 129, 0) 100%),
+    radial-gradient(30% 36% at 90% 62%, rgba(16, 185, 129, 0.32), rgba(16, 185, 129, 0) 100%),
+    radial-gradient(34% 40% at 58% 86%, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0) 100%),
+    radial-gradient(50% 50% at 30% 20%, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0) 100%);
+}
+
+/* ---------- Loader ---------- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--page-bg);
+  transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1),
+    opacity 0.5s ease 0.2s;
+}
+
+.loader.is-exiting {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.loader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+/* Mark and letters sit on one line and read as a single word, matching the
+   header brand. Same no-uppercase / tiny-gap / baseline-nudge treatment. */
+.loader-wordmark {
+  --brand-nudge: 3px;
+  display: flex;
+  align-items: center;
+  gap: 0.06em;
+  font-size: clamp(2.5rem, 7vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+
+.loader-logo {
+  display: block;
+  width: 0.78em;
+  height: auto;
+  flex-shrink: 0;
+  animation: loaderLogo 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes loaderLogo {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.loader-letters {
+  display: flex;
+  transform: translateY(var(--brand-nudge));
+}
+
+.loader-letters span {
+  display: inline-block;
+  animation: loaderLetter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Offset so the letters follow the mark in rather than racing it. */
+  animation-delay: calc(0.22s + var(--i) * 70ms);
+}
+
+@keyframes loaderLetter {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loader-bar {
+  position: relative;
+  width: min(260px, 60vw);
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.loader-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: loaderSweep 1.15s ease-in-out infinite;
+}
+
+@keyframes loaderSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+.loader-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+}
+
+/* ---------- Scroll animation primitives ---------- */
+
+/* Clipping box for one word; .word-inner is what GSAP slides up. The padding /
+   negative margin pair keeps descenders (g, y, p) from being shaved off. */
+.word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+.word-inner {
+  display: inline-block;
+}
+
+/* Stacking order, highest first: loader 100, skip link 70, progress 60,
+   topbar 50, nav drawer 45, backdrop 42, back-to-top 40. The topbar sits above
+   the drawer on purpose so the close button is never covered by it. */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  background: rgba(4, 53, 42, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s;
+}
+
+.nav-backdrop[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.scroll-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.back-to-top {
+  position: fixed;
+  right: clamp(1rem, 3vw, 2.5rem);
+  bottom: clamp(1rem, 3vw, 2.5rem);
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(10, 15, 13, 0.18);
+  /* Hidden by default; `visibility` keeps it off the a11y tree and unclickable. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity var(--transition), transform var(--transition),
+    visibility var(--transition), background var(--transition);
+}
+
+.back-to-top.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.back-to-top:hover {
+  background: var(--accent-ink);
+  color: #ffffff;
+}
+
+/* ---------- Layout primitives ---------- */
+
+.container {
+  width: min(1480px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.skip-link {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -120%);
+  z-index: 70;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform var(--transition);
+}
+
+.skip-link:focus-visible {
+  transform: translate(-50%, 0);
+}
+
+.portfolio-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+  padding: 2rem 0 3rem;
+}
+
+/* ---------- Topbar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+/* Mark + "awan" have to read as one word, so: no uppercase (it would give
+   "P AWAN"), a near-zero gap, and a nudge to sit the text on the mark's
+   baseline. Tweak --brand-nudge if the two look a pixel off. */
+.brand {
+  --brand-nudge: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.06em;
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: block;
+  width: 26px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: block;
+  transform: translateY(var(--brand-nudge));
+}
+
+.nav-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-links a {
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  position: relative;
+  padding: 0.25rem 0;
+  transition: color var(--transition);
+}
+
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--transition);
+}
+
+.nav-links a:hover,
+.nav-links a:focus-visible,
+.nav-links a[aria-current='true'] {
+  color: var(--accent-ink);
+}
+
+.nav-links a:hover::after,
+.nav-links a:focus-visible::after,
+.nav-links a[aria-current='true']::after {
+  transform: scaleX(1);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.header-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.6rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  transition: transform var(--transition), background var(--transition);
+}
+
+.header-cta:hover {
+  transform: translateY(-1px);
+  background: var(--accent-ink);
+  color: #ffffff;
+}
+
+.nav-toggle {
+  display: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-strong);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+/* Hover only on devices that actually hover — on touch the style would stick
+   after a tap and leave the button looking permanently pressed. */
+@media (hover: hover) {
+  .nav-toggle:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+}
+
+.nav-toggle-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 12px;
+}
+
+.nav-toggle-icon span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.nav-toggle-icon span:nth-child(1) {
+  top: 0;
+}
+
+.nav-toggle-icon span:nth-child(2) {
+  top: 5px;
+}
+
+.nav-toggle-icon span:nth-child(3) {
+  top: 10px;
+}
+
+/* Bars fold into a cross while the panel is open. */
+.nav-toggle[aria-expanded='true'] .nav-toggle-icon span:nth-child(1) {
+  transform: translateY(5px) rotate(45deg);
+}
+
+.nav-toggle[aria-expanded='true'] .nav-toggle-icon span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-toggle[aria-expanded='true'] .nav-toggle-icon span:nth-child(3) {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+/* ---------- Shared card surface ---------- */
+
+.card,
+.project-card,
+.service-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: var(--step);
+  transition: transform var(--transition), border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+/* Only linked project cards lift — a hover affordance on a card that goes
+   nowhere reads as a broken link. */
+.project-card.is-linked:hover,
+.service-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+}
+
+/* ---------- Hero ---------- */
+
+.hero-card {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-height: var(--hero-height);
+  padding: 3rem 0;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.hero-kicker {
+  font-size: clamp(1.05rem, 1.5vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.hero-description {
+  max-width: 54ch;
+  margin-bottom: 2.5rem;
+  font-size: clamp(1rem, 1.2vw, 1.15rem);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.hero-title {
+  margin: 0 0 1.5rem;
+  max-width: 14ch;
+  font-weight: 800;
+  font-size: clamp(3rem, 7.5vw, 6.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: initial;
+}
+
+/* The square full stop after the headline. */
+.hero-dot {
+  display: inline-block;
+  width: 0.14em;
+  height: 0.14em;
+  margin-left: 0.1em;
+  background: var(--accent);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+/* ---------- Tech stack ---------- */
+
+.tech-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--step);
+}
+
+.tech-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tech-tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 1.15rem;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.tech-tab:hover {
+  color: var(--text-strong);
+  background: var(--surface-2);
+}
+
+/* The active state is carried by the pill alone, not an underline: the tablist
+   wraps to several rows on narrow screens, where an underline pinned to the
+   list's bottom border would float away from the tab it belongs to. */
+.tech-tab.is-active {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Flex, not grid: CSS grid has no way to centre a short final row, so the
+   leftover items would sit hard-left under a full row above them. */
+.tech-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.tech-grid:focus-visible {
+  outline-offset: 8px;
+}
+
+.tech-item {
+  /* Grows to share a full row, but never past max-width, so a short last row
+     stays centred with sensibly sized tiles rather than three huge ones. */
+  flex: 1 1 180px;
+  max-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: transform var(--transition), border-color var(--transition),
+    background var(--transition);
+  animation: techIn 0.45s ease both;
+  animation-delay: calc(var(--i) * 35ms);
+}
+
+.tech-item:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@keyframes techIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tech-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+/* The role label is what keeps the grid from reading as a wall of nouns. */
+.tech-kind {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-ink);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 1.4rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: transform var(--transition), background var(--transition),
+    color var(--transition);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-ink);
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.btn-secondary:hover {
+  background: var(--accent-soft);
+}
+
+.btn-lg {
+  padding: 1.1rem 2.2rem;
+  font-size: 1.02rem;
+}
+
+/* ---------- About ---------- */
+
+.about-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+.about-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+/* Short rule before the label, as in the reference layout. */
+.eyebrow-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1rem;
+}
+
+.eyebrow-rule::before {
+  content: '';
+  width: 42px;
+  height: 1px;
+  background: var(--accent);
+}
+
+.about-title {
+  margin: 1.25rem 0 1.75rem;
+  max-width: 18ch;
+  font-size: clamp(2.1rem, 3.6vw, 3.4rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.about-text {
+  margin-bottom: 1.25rem;
+  max-width: 58ch;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: var(--text-body);
+}
+
+.about-quote {
+  margin: 1.25rem 0 3rem;
+  padding-left: 1.5rem;
+  border-left: 3px solid var(--accent);
+  max-width: 52ch;
+  font-size: 1.05rem;
+  color: var(--text-body);
+}
+
+.about-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  margin: 0;
+}
+
+.about-stat dt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stat-value {
+  font-size: clamp(2.25rem, 3.4vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--text-strong);
+  /* Fixed-width digits stop the number jittering while it counts up. */
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-suffix {
+  color: var(--accent);
+}
+
+.stat-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.about-stat dd {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+  color: var(--text-body);
+}
+
+.about-media img {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  object-fit: cover;
+  aspect-ratio: 3 / 2;
+}
+
+/* ---------- Sections ---------- */
+
+.projects-section,
+.services-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--step);
+}
+
+/* ---------- Work slider ---------- */
+
+.work-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.work-viewport {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.work-track {
+  display: flex;
+  transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.work-slide {
+  /* Exactly one slide wide, and never allowed to shrink to fit — this pairing
+     is what makes translateX(-index * 100%) land on slide boundaries. */
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.work-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.work-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition),
+    color var(--transition);
+}
+
+.work-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.work-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.5rem;
+}
+
+.work-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+  transition: width var(--transition), background var(--transition);
+}
+
+.work-dot.is-active {
+  width: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+/* ---------- Project card ---------- */
+
+.project-card {
+  /* Image runs edge to edge, so padding lives on .project-body instead. */
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+}
+
+.project-media {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.project-media img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.project-card:hover .project-media img,
+.project-card:focus-visible .project-media img {
+  transform: scale(1.05);
+}
+
+.project-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.project-card h3 {
+  margin-bottom: 0.6rem;
+  font-size: 1.3rem;
+}
+
+.project-card p {
+  font-size: 0.95rem;
+  color: var(--text-body);
+}
+
+.project-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  /* Pinned to the bottom so the link sits on one line across a row of cards
+     whose descriptions are different lengths. */
+  margin-top: auto;
+  padding-top: 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.project-arrow {
+  transition: transform var(--transition);
+}
+
+.project-card:hover .project-arrow,
+.project-card:focus-visible .project-arrow {
+  transform: translate(3px, -3px);
+}
+
+.project-card.is-linked:hover,
+.project-card.is-linked:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 22px 45px rgba(16, 185, 129, 0.16);
+}
+
+.work-slide .project-card {
+  height: 100%;
+}
+
+/* Fixed height + object-fit gives a predictable landscape band. Using
+   aspect-ratio instead would make the image grow with the slider's width and
+   push the card far taller than intended on wide screens. */
+.work-slide .project-media img {
+  height: clamp(240px, 32vw, 420px);
+  aspect-ratio: auto;
+  object-fit: cover;
+}
+
+.work-slide .project-body {
+  padding: 1.75rem 2rem 2rem;
+}
+
+.work-slide .project-card h3 {
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+}
+
+.work-slide .project-card p {
+  max-width: 68ch;
+  font-size: 1rem;
+}
+
+.work-slide .project-link {
+  margin-top: 1.25rem;
+  padding-top: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Services ---------- */
+
+/* Shared centred intro used by Services, Tech, and Projects. */
+.section-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-intro h2 {
+  max-width: 18ch;
+  font-size: clamp(2.1rem, 3.6vw, 3.4rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--step);
+  /* Every card in a row shares the tallest card's height. */
+  align-items: stretch;
+}
+
+.service-card {
+  position: relative;
+  /* Contains the gradient layer's negative z-index inside this card. */
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 2.25rem;
+}
+
+/* Hover gradient lives on its own layer: `background-image` cannot be
+   transitioned, but the opacity of a layer sitting on top of it can. */
+.service-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    145deg,
+    rgba(16, 185, 129, 0.22) 0%,
+    rgba(16, 185, 129, 0.06) 45%,
+    rgba(16, 185, 129, 0) 80%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.service-card:hover::before,
+.service-card:focus-within::before {
+  opacity: 1;
+}
+
+.service-card:hover,
+.service-card:focus-within {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 22px 45px rgba(16, 185, 129, 0.16);
+}
+
+.service-icon {
+  /* Block, not inline: an inline SVG sits on the text baseline and adds a few
+     pixels of descender space below it, which offsets every title under it. */
+  display: block;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  color: var(--text-strong);
+  margin-bottom: 2rem;
+  transition: color var(--transition), transform var(--transition);
+}
+
+.service-icon .icon-accent {
+  stroke: var(--accent);
+}
+
+.service-card:hover .service-icon,
+.service-card:focus-within .service-icon {
+  color: var(--accent-ink);
+  /* forwards holds the icon at the keyframe's end state, which matches the
+     -2px resting offset, so it does not snap back when the animation ends. */
+  animation: iconPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes iconPop {
+  0% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  45% {
+    transform: translateY(-7px) scale(1.12) rotate(-5deg);
+  }
+  100% {
+    transform: translateY(-2px) scale(1) rotate(0deg);
+  }
+}
+
+/* The green details thicken briefly, so the accent reads as the active part. */
+.service-card:hover .icon-accent,
+.service-card:focus-within .icon-accent {
+  animation: accentPulse 0.6s ease;
+}
+
+@keyframes accentPulse {
+  50% {
+    stroke-width: 3.2;
+  }
+}
+
+.service-card h3 {
+  margin-bottom: 0.75rem;
+  font-size: 1.2rem;
+}
+
+.service-card p {
+  font-size: 0.95rem;
+  color: var(--text-body);
+}
+
+/* ---------- Featured case study ---------- */
+
+.case-section {
+  padding: 3rem 0;
+}
+
+/* One quote, presented as a statement: oversized mark, large centred type, and
+   the client credited underneath. The photo is deliberately small — it is
+   supporting evidence, not the subject. */
+.case-study {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin: 0;
+  padding: clamp(2.5rem, 5vw, 5rem) clamp(1.5rem, 5vw, 5rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+/* Faint oversized mark bleeding off the top-left corner. */
+.case-study::before {
+  content: '\201C';
+  position: absolute;
+  top: -2.5rem;
+  left: 1rem;
+  font-size: 16rem;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--accent);
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+}
+
+.case-mark {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-size: clamp(3rem, 6vw, 5rem);
+  line-height: 0.6;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.case-quote {
+  position: relative;
+  margin: 0;
+  max-width: 30ch;
+  font-size: clamp(1.35rem, 2.8vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  color: var(--text-strong);
+  text-wrap: balance;
+}
+
+.case-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 2.75rem;
+  padding-top: 2.75rem;
+  width: 100%;
+  border-top: 1px solid var(--border);
+}
+
+.case-avatar {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--surface);
+  box-shadow: 0 10px 26px rgba(10, 15, 13, 0.12);
+}
+
+.case-client {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.case-services {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.section-description {
+  max-width: 660px;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.project-card p,
+.card p {
+  color: var(--text-body);
+}
+
+/* ---------- Contact + footer ---------- */
+
+.site-footer {
+  padding: 5rem 0 3.5rem;
+  background-color: var(--footer-bg);
+  color: var(--footer-text);
+  border-radius: 40px 40px 0 0;
+  /* Keeps the rounded corners clipping anything inside them. */
+  overflow: hidden;
+}
+
+.footer-head {
+  margin-bottom: 4rem;
+}
+
+.footer-title {
+  color: var(--footer-strong);
+}
+
+.footer-title {
+  max-width: 15ch;
+  font-size: clamp(2.4rem, 5vw, 4.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.8fr 0.9fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.social-link {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--footer-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--footer-strong);
+  text-decoration: none;
+  transition: background var(--transition), border-color var(--transition),
+    color var(--transition), transform var(--transition);
+}
+
+a.social-link:hover,
+a.social-link:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(16, 185, 129, 0.32);
+}
+
+a.social-link:active {
+  transform: translateY(-1px);
+}
+
+/* Awaiting a URL: visible, but clearly not interactive. */
+.social-link.is-placeholder {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.copyright {
+  color: var(--footer-text);
+  font-size: 0.95rem;
+}
+
+.footer-col h3 {
+  margin-bottom: 1.75rem;
+  font-size: 1.2rem;
+  color: var(--footer-strong);
+}
+
+.footer-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.footer-col a {
+  text-decoration: none;
+  color: var(--footer-text);
+  transition: color var(--transition);
+}
+
+.footer-col a:hover {
+  color: var(--accent);
+}
+
+.footer-location {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 1.5rem;
+  color: var(--footer-text);
+}
+
+.location-city {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.footer-contact-link {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.footer-contact-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1080px) {
+  .about-layout {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .about-title {
+    max-width: 22ch;
+  }
+}
+
+@media (max-width: 1080px) {
+  .services-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 3.5rem;
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 960px) {
+  .case-study {
+    grid-template-columns: 1fr;
+  }
+
+  .work-slide .project-body {
+    padding: 1.5rem;
+  }
+
+  .case-rule {
+    margin: 2rem 0 1.5rem;
+  }
+
+  .footer-head {
+    margin-bottom: 3.5rem;
+  }
+
+  .nav-toggle {
+    display: grid;
+  }
+
+  /* Sized down so the CTA and the burger both fit beside the wordmark. */
+  .header-cta {
+    padding: 0.7rem 1.15rem;
+    font-size: 0.9rem;
+  }
+
+  /* backdrop-filter makes an element a containing block for its position:fixed
+     descendants. With it on, the drawer below sizes itself to the header
+     instead of the viewport and its links spill out over the page. Dropping the
+     blur here is what lets the drawer be full height; the bar goes fully opaque
+     to compensate. */
+  .topbar {
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+
+  .topbar-inner {
+    flex-wrap: nowrap;
+  }
+
+  /* Nav becomes a fixed drawer sliding in from the right. Fixed, not in flow,
+     so opening it does not reflow the header or push the page down. */
+  .nav-links {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(76vw, 320px);
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    /* Clears the sticky header, which sits above the drawer so the close
+       button stays reachable while it is open. */
+    padding: 6rem 1.5rem 2rem;
+    /* Long menus stay reachable on short screens. */
+    overflow-y: auto;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -24px 0 60px rgba(10, 15, 13, 0.14);
+    transform: translateX(100%);
+    /* visibility, not display: it keeps the slide animation while still taking
+       the closed drawer out of the tab order and off the a11y tree. */
+    visibility: hidden;
+    transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+      visibility 0.35s;
+  }
+
+  .nav-links[data-open='true'] {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .nav-links a {
+    padding: 0.85rem 0.25rem;
+    font-size: 1.05rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-backdrop {
+    display: block;
+  }
+}
+
+@media (max-width: 420px) {
+  .header-actions {
+    gap: 0.5rem;
+  }
+
+  .header-cta {
+    padding: 0.65rem 0.9rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+  }
+
+  .nav-toggle {
+    width: 42px;
+    height: 42px;
+  }
+
+  .brand {
+    font-size: 1.35rem;
+  }
+
+  .brand-mark {
+    width: 22px;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    width: min(100% - 20px, 1480px);
+  }
+
+  .portfolio-shell {
+    padding: 1rem 0 2rem;
+    gap: 3rem;
+  }
+
+  .about-stats {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .about-quote {
+    margin-bottom: 2rem;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  /* Not .project-card — its image is edge to edge. */
+  .project-body {
+    padding: 1.25rem;
+  }
+
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tech-grid {
+    gap: 0.75rem;
+  }
+
+  .tech-item {
+    flex: 1 1 140px;
+    max-width: none;
+  }
+
+  .tech-item {
+    padding: 1rem 1.1rem;
+  }
+
+  .tech-tabs {
+    gap: 0.35rem;
+    margin-bottom: 2rem;
+  }
+
+  .tech-tab {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.88rem;
+  }
+
+  .service-card {
+    padding: 1.75rem;
+  }
+
+  .service-icon {
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-actions {
+    align-self: stretch;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    row-gap: 2.5rem;
+  }
+
+  .site-footer {
+    padding: 3.5rem 0 3rem;
+  }
+
+  .case-avatar {
+    width: 60px;
+    height: 60px;
+  }
+}
