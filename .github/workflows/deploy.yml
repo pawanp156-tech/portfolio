@@ -93,6 +93,27 @@ jobs:
             **/.git*/**
             **/node_modules/**
 
+      # Diagnostic: prints what is actually sitting in the FTP account's root
+      # after the upload. If the build's files are listed here but the live site
+      # still serves something else, the account's root is not this domain's
+      # document root — which no amount of changing FTP_SERVER_DIR will fix.
+      - name: List remote directory
+        if: always()
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          echo "--- contents of the FTP account root ---"
+          curl --ssl-reqd --silent --show-error --list-only \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            "ftp://$FTP_SERVER/" || echo "(listing failed)"
+
+          echo "--- looking for an index.html and its date ---"
+          curl --ssl-reqd --silent --show-error \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            "ftp://$FTP_SERVER/" | head -40 || echo "(listing failed)"
+
       # A successful FTP upload only proves files were written somewhere. If
       # FTP_SERVER_DIR is not the domain's real document root, the upload still
       # reports success while the live site is untouched. This checks the site
