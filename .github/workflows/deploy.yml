@@ -1,57 +1,26 @@
-name: Deploy to Hostinger
+name: Build and publish
 
 on:
   push:
     branches: [main]
-  # Lets you re-deploy from the Actions tab without pushing a commit.
+  # Lets you re-publish from the Actions tab without pushing a commit.
   workflow_dispatch:
 
-# A second push while one deploy is mid-upload would interleave two sets of
-# files on the server. Queue instead, and never cancel a run that is already
-# writing to public_html.
+# Needed to force-push the built site to the deploy branch.
+permissions:
+  contents: write
+
+# Two runs pushing the deploy branch at once would race. Queue instead.
 concurrency:
-  group: deploy-production
+  group: publish-production
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build and upload
+  publish:
+    name: Build and publish to deploy branch
     runs-on: ubuntu-latest
 
     steps:
-      # Runs first so a missing secret fails in seconds with a readable message,
-      # instead of after a full build with an opaque FTP connection error.
-      - name: Check deployment secrets
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
-        run: |
-          missing=""
-          [ -z "$FTP_SERVER" ]     && missing="$missing FTP_SERVER"
-          [ -z "$FTP_USERNAME" ]   && missing="$missing FTP_USERNAME"
-          [ -z "$FTP_PASSWORD" ]   && missing="$missing FTP_PASSWORD"
-          [ -z "$FTP_SERVER_DIR" ] && missing="$missing FTP_SERVER_DIR"
-
-          if [ -n "$missing" ]; then
-            echo "::error::Missing repository secrets:$missing — add them under Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-
-          # The FTP action silently uploads to the wrong path without this.
-          case "$FTP_SERVER_DIR" in
-            */) ;;
-            *) echo "::error::FTP_SERVER_DIR must end with a slash, e.g. /public_html/"; exit 1 ;;
-          esac
-
-          # A host:port or URL here fails to connect with a confusing message.
-          case "$FTP_SERVER" in
-            *://*) echo "::error::FTP_SERVER must be a hostname only, without ftp:// or ftps://"; exit 1 ;;
-          esac
-
-          echo "All deployment secrets present."
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -64,7 +33,7 @@ jobs:
 
       # `npm ci` installs exactly what package-lock.json pins, and fails if the
       # lockfile is out of sync — `npm install` would quietly resolve new
-      # versions and could deploy something that was never tested.
+      # versions and could publish something that was never tested.
       - name: Install dependencies
         run: npm ci
 
@@ -74,81 +43,67 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Upload to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          # Trailing slashes are required by this action.
-          local-dir: ./dist/
-          server-dir: ${{ secrets.FTP_SERVER_DIR }}
-          # The action keeps a manifest on the server and uploads only changed
-          # files, so a redeploy is seconds rather than a full re-upload.
-          state-name: .ftp-deploy-sync-state.json
-          # Never touch anything the site did not build.
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-
-      # Diagnostic: prints what is actually sitting in the FTP account's root
-      # after the upload. If the build's files are listed here but the live site
-      # still serves something else, the account's root is not this domain's
-      # document root — which no amount of changing FTP_SERVER_DIR will fix.
-      - name: List remote directory
-        if: always()
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      # Hostinger's Git integration clones a branch as-is; it never runs a build.
+      # Pointing it at `main` therefore serves raw source — index.html asking the
+      # browser for /src/main.jsx, which it cannot execute. This branch holds the
+      # contents of dist/ at its root, so a plain clone is already a working site.
+      - name: Publish dist to the deploy branch
         run: |
-          echo "--- contents of the FTP account root ---"
-          curl --ssl-reqd --silent --show-error --list-only \
-            --user "$FTP_USERNAME:$FTP_PASSWORD" \
-            "ftp://$FTP_SERVER/" || echo "(listing failed)"
+          cd dist
 
-          echo "--- looking for an index.html and its date ---"
-          curl --ssl-reqd --silent --show-error \
-            --user "$FTP_USERNAME:$FTP_PASSWORD" \
-            "ftp://$FTP_SERVER/" | head -40 || echo "(listing failed)"
+          # A fresh repo each run, force-pushed: the deploy branch is a snapshot
+          # of the current build, not a history worth keeping.
+          git init -q -b deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Build from ${GITHUB_SHA:0:7}"
 
-      # A successful FTP upload only proves files were written somewhere. If
-      # FTP_SERVER_DIR is not the domain's real document root, the upload still
-      # reports success while the live site is untouched. This checks the site
-      # actually serves the build that was just deployed.
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            deploy
+
+          echo "Published $(git ls-files | wc -l) files to the deploy branch."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional: if you enable auto-deployment in hPanel, paste the webhook URL
+      # into a HOSTINGER_DEPLOY_WEBHOOK secret and Hostinger pulls immediately.
+      # Without it, click Deploy in hPanel after each run.
+      - name: Trigger Hostinger deployment
+        env:
+          WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::HOSTINGER_DEPLOY_WEBHOOK not set — pull the deploy branch manually in hPanel."
+            exit 0
+          fi
+          curl -fsS --max-time 30 "$WEBHOOK" && echo "Hostinger deployment triggered."
+
+      # Publishing a branch proves nothing about what the domain serves. This
+      # checks the live site is actually running the build that was just made.
       - name: Verify the live site
         env:
-          # Accepts SITE_URL as either a repository variable or a secret. It is
-          # a public URL so a variable is the right home, but reading both means
-          # the check cannot be silently skipped by putting it in the wrong one.
           SITE_URL: ${{ vars.SITE_URL || secrets.SITE_URL }}
         run: |
-          URL="$SITE_URL"
-
-          if [ -z "$URL" ]; then
-            echo "::warning::SITE_URL is not set, so the deploy was not verified. Add it under Settings > Secrets and variables > Actions."
+          if [ -z "$SITE_URL" ]; then
+            echo "::warning::SITE_URL is not set, so the deploy was not verified. Add it under Settings > Secrets and variables > Actions > Variables."
             exit 0
           fi
 
-          echo "Checking $URL"
-
-          # The built index.html references its hashed asset filenames; if the
-          # live page names the same ones, this deploy is what is being served.
           ASSET=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
-          echo "Expecting asset: $ASSET"
+          echo "Checking $SITE_URL for $ASSET"
 
-          LIVE=$(curl -fsSL --max-time 30 "$URL" || true)
+          # Hostinger may take a moment to pull, so allow a few attempts.
+          for i in 1 2 3 4 5 6; do
+            LIVE=$(curl -fsSL --max-time 30 "$SITE_URL" || true)
+            if echo "$LIVE" | grep -q "$ASSET"; then
+              echo "Live site is serving this build."
+              exit 0
+            fi
+            echo "Attempt $i: not live yet, waiting..."
+            sleep 15
+          done
 
-          if [ -z "$LIVE" ]; then
-            echo "::error::Could not fetch $URL"
-            exit 1
-          fi
-
-          if echo "$LIVE" | grep -q "$ASSET"; then
-            echo "Live site is serving this build."
-          else
-            echo "::error::$URL responded but is not serving this build. FTP_SERVER_DIR is probably not the document root for this domain. Check hPanel > Websites > (domain) for the real path — addon domains use /domains/<domain>/public_html/ rather than /public_html/."
-            exit 1
-          fi
+          echo "::error::$SITE_URL is not serving this build. If hPanel > Git still points at 'main', switch it to the 'deploy' branch — 'main' holds source that Hostinger does not build."
+          exit 1

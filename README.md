@@ -16,29 +16,43 @@ npm run lint     # oxlint
 
 ## Deployment
 
-Every push to `main` builds the site and uploads `dist/` to Hostinger over FTPS
-via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). The workflow lints and builds first,
-so a broken commit never reaches the server. You can also re-run it by hand from
-the repo's **Actions** tab.
+Two branches, two jobs:
 
-### Required GitHub secrets
+- **`main`** — the source. Never deploy this directly.
+- **`deploy`** — build output only, force-pushed by CI. This is what Hostinger serves.
 
-Add these under **Settings → Secrets and variables → Actions → New repository secret**.
-The values come from hPanel → **Files → FTP Accounts**.
+Every push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): lint, build, then
+publish the contents of `dist/` to the `deploy` branch. You can also run it by
+hand from the repo's **Actions** tab.
 
-| Secret            | Value                                                       |
-| ----------------- | ----------------------------------------------------------- |
-| `FTP_SERVER`      | FTP hostname, e.g. `ftp.yourdomain.com` — host only, no `ftp://` |
-| `FTP_USERNAME`    | FTP account username, e.g. `u123456789.deploy`                |
-| `FTP_PASSWORD`    | That account's password                                       |
-| `FTP_SERVER_DIR`  | Target directory **with a trailing slash**, usually `/public_html/` |
+### Why a separate branch
 
-Two things that will bite otherwise:
+Hostinger's Git integration clones a branch verbatim — it never runs `npm
+install` or a build. Point it at `main` and the server ends up hosting raw
+source: `index.html` asks the browser for `/src/main.jsx`, which it cannot
+execute, so the page renders blank. The `deploy` branch holds the *built* files
+at its root, so a plain clone is already a working site.
 
-- `FTP_SERVER_DIR` must end in `/`. Without it the action uploads into a
-  sibling path and the site 404s.
-- Create a **separate FTP account** scoped to `public_html` rather than using
-  the main hosting login, so a leaked secret cannot reach the rest of the account.
+### hPanel setup
+
+Under **Websites → (domain) → Git**:
+
+| Field      | Value                                             |
+| ---------- | ------------------------------------------------- |
+| Repository | `git@github.com:pawanp156-tech/portfolio.git`     |
+| Branch     | `deploy` — **not `main`**                         |
+| Directory  | leave empty for the domain's document root        |
+
+Optionally enable auto-deployment there and put the webhook URL in a
+`HOSTINGER_DEPLOY_WEBHOOK` secret, and CI will trigger the pull itself.
+Without it, click **Deploy** in hPanel after each run.
+
+### Verifying
+
+Set a `SITE_URL` repository **variable** (Settings → Secrets and variables →
+Actions → Variables) to your live URL. CI then polls the site and fails if it is
+not serving the build that was just published — otherwise a green run only means
+a branch was pushed, which says nothing about what the domain actually serves.
 
 ### Caching
 
