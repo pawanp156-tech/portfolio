@@ -29,7 +29,7 @@ export const hero = {
   title: 'Full Stack Software Developer',
   description:
     'I build fast, accessible web products end to end — from the interface a visitor touches to the API behind it. Clear structure, honest performance, and code that stays easy to change.',
-  primaryCta: { label: 'Contact Us', href: '#contact' },
+  primaryCta: { label: 'Contact', href: '#contact' },
   secondaryCta: { label: 'Our Services', href: '#services' },
 }
 
