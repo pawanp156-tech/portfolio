@@ -98,9 +98,19 @@ jobs:
       # reports success while the live site is untouched. This checks the site
       # actually serves the build that was just deployed.
       - name: Verify the live site
-        if: vars.SITE_URL != ''
+        env:
+          # Accepts SITE_URL as either a repository variable or a secret. It is
+          # a public URL so a variable is the right home, but reading both means
+          # the check cannot be silently skipped by putting it in the wrong one.
+          SITE_URL: ${{ vars.SITE_URL || secrets.SITE_URL }}
         run: |
-          URL="${{ vars.SITE_URL }}"
+          URL="$SITE_URL"
+
+          if [ -z "$URL" ]; then
+            echo "::warning::SITE_URL is not set, so the deploy was not verified. Add it under Settings > Secrets and variables > Actions."
+            exit 0
+          fi
+
           echo "Checking $URL"
 
           # The built index.html references its hashed asset filenames; if the
