@@ -92,3 +92,32 @@ jobs:
             **/.git*
             **/.git*/**
             **/node_modules/**
+
+      # A successful FTP upload only proves files were written somewhere. If
+      # FTP_SERVER_DIR is not the domain's real document root, the upload still
+      # reports success while the live site is untouched. This checks the site
+      # actually serves the build that was just deployed.
+      - name: Verify the live site
+        if: vars.SITE_URL != ''
+        run: |
+          URL="${{ vars.SITE_URL }}"
+          echo "Checking $URL"
+
+          # The built index.html references its hashed asset filenames; if the
+          # live page names the same ones, this deploy is what is being served.
+          ASSET=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+          echo "Expecting asset: $ASSET"
+
+          LIVE=$(curl -fsSL --max-time 30 "$URL" || true)
+
+          if [ -z "$LIVE" ]; then
+            echo "::error::Could not fetch $URL"
+            exit 1
+          fi
+
+          if echo "$LIVE" | grep -q "$ASSET"; then
+            echo "Live site is serving this build."
+          else
+            echo "::error::$URL responded but is not serving this build. FTP_SERVER_DIR is probably not the document root for this domain. Check hPanel > Websites > (domain) for the real path — addon domains use /domains/<domain>/public_html/ rather than /public_html/."
+            exit 1
+          fi
