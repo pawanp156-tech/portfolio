@@ -14,6 +14,45 @@ npm run preview  # serve the production build locally
 npm run lint     # oxlint
 ```
 
+## Deployment
+
+Every push to `main` builds the site and uploads `dist/` to Hostinger over FTPS
+via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). The workflow lints and builds first,
+so a broken commit never reaches the server. You can also re-run it by hand from
+the repo's **Actions** tab.
+
+### Required GitHub secrets
+
+Add these under **Settings → Secrets and variables → Actions → New repository secret**.
+The values come from hPanel → **Files → FTP Accounts**.
+
+| Secret            | Value                                                       |
+| ----------------- | ----------------------------------------------------------- |
+| `FTP_SERVER`      | FTP hostname, e.g. `ftp.yourdomain.com` — host only, no `ftp://` |
+| `FTP_USERNAME`    | FTP account username, e.g. `u123456789.deploy`                |
+| `FTP_PASSWORD`    | That account's password                                       |
+| `FTP_SERVER_DIR`  | Target directory **with a trailing slash**, usually `/public_html/` |
+
+Two things that will bite otherwise:
+
+- `FTP_SERVER_DIR` must end in `/`. Without it the action uploads into a
+  sibling path and the site 404s.
+- Create a **separate FTP account** scoped to `public_html` rather than using
+  the main hosting login, so a leaked secret cannot reach the rest of the account.
+
+### Caching
+
+[`public/.htaccess`](public/.htaccess) ships with the build. Hashed assets are cached for a year
+(`immutable`), while `index.html` is explicitly *not* cached — it is the file
+that points at the new hashed filenames, so caching it would keep visitors on
+the previous build after a deploy.
+
+### Deploying to a subfolder
+
+The config assumes the site is served from the domain root. For
+`example.com/portfolio`, set `base: '/portfolio/'` in [`vite.config.js`](vite.config.js) — otherwise
+every CSS and JS request resolves to the wrong path.
+
 ## Editing content
 
 Nearly everything on the page comes from [`src/data/siteContent.js`](src/data/siteContent.js) —

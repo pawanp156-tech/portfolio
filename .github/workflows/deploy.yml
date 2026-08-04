@@ -1,0 +1,61 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-deploy from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# A second push while one deploy is mid-upload would interleave two sets of
+# files on the server. Queue instead, and never cancel a run that is already
+# writing to public_html.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and upload
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Vite 8 requires ^20.19.0 || >=22.12.0
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins, and fails if the
+      # lockfile is out of sync — `npm install` would quietly resolve new
+      # versions and could deploy something that was never tested.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload to Hostinger
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          # Trailing slashes are required by this action.
+          local-dir: ./dist/
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          # The action keeps a manifest on the server and uploads only changed
+          # files, so a redeploy is seconds rather than a full re-upload.
+          state-name: .ftp-deploy-sync-state.json
+          # Never touch anything the site did not build.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
