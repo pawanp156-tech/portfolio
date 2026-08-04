@@ -19,6 +19,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Runs first so a missing secret fails in seconds with a readable message,
+      # instead of after a full build with an opaque FTP connection error.
+      - name: Check deployment secrets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          missing=""
+          [ -z "$FTP_SERVER" ]     && missing="$missing FTP_SERVER"
+          [ -z "$FTP_USERNAME" ]   && missing="$missing FTP_USERNAME"
+          [ -z "$FTP_PASSWORD" ]   && missing="$missing FTP_PASSWORD"
+          [ -z "$FTP_SERVER_DIR" ] && missing="$missing FTP_SERVER_DIR"
+
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing — add them under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          # The FTP action silently uploads to the wrong path without this.
+          case "$FTP_SERVER_DIR" in
+            */) ;;
+            *) echo "::error::FTP_SERVER_DIR must end with a slash, e.g. /public_html/"; exit 1 ;;
+          esac
+
+          # A host:port or URL here fails to connect with a confusing message.
+          case "$FTP_SERVER" in
+            *://*) echo "::error::FTP_SERVER must be a hostname only, without ftp:// or ftps://"; exit 1 ;;
+          esac
+
+          echo "All deployment secrets present."
+
       - name: Checkout
         uses: actions/checkout@v4
 
