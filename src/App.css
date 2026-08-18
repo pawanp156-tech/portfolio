@@ -1211,9 +1211,53 @@
   color: var(--text-strong);
 }
 
-.case-services {
-  font-size: 0.9rem;
-  color: var(--text-muted);
+/* Quote and avatar+name swap on a timer (see CaseStudy.jsx). The key change
+   on each remounts these two nodes, which restarts the fade-in below. */
+@keyframes caseFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.case-quote,
+.case-meta {
+  animation: caseFade 0.5s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-quote,
+  .case-meta {
+    animation: none;
+  }
+}
+
+/* Small dots under the card so a visitor can jump to a specific testimonial
+   or see how many there are; also doubles as a pause point on hover/focus. */
+.case-dots {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.75rem;
+}
+
+.case-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.case-dot.is-active {
+  background: var(--accent);
+  transform: scale(1.2);
 }
 
 .section-description {
@@ -1517,6 +1561,11 @@ a.social-link:active {
 
   .about-quote {
     margin-bottom: 2rem;
+  }
+
+  .about-media img {
+    aspect-ratio: unset;
+    height: 500px !important;
   }
 
   .card {

@@ -14,7 +14,6 @@ import { useActiveSection } from './hooks/useActiveSection'
 import { useScrollAnimations } from './hooks/useScrollAnimations'
 import {
   about,
-  caseStudy,
   contact,
   footerGroups,
   hero,
@@ -26,6 +25,7 @@ import {
   site,
   techCategories,
   techIntro,
+  testimonials,
 } from './data/siteContent'
 
 // Module scope keeps the array identity stable across renders.
@@ -266,13 +266,13 @@ function App() {
           </div>
         </section>
 
-        {caseStudy ? (
+        {testimonials.length > 0 ? (
           <section id="testimonials" className="case-section" aria-labelledby="case-title">
             <h2 id="case-title" className="visually-hidden">
               Client feedback
             </h2>
             <div data-reveal>
-              <CaseStudy {...caseStudy} />
+              <CaseStudy items={testimonials} />
             </div>
           </section>
         ) : null}

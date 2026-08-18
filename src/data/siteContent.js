@@ -29,7 +29,7 @@ export const hero = {
   title: 'Full Stack Software Developer',
   description:
     'I build fast, accessible web products end to end — from the interface a visitor touches to the API behind it. Clear structure, honest performance, and code that stays easy to change.',
-  primaryCta: { label: 'Contact', href: '#contact' },
+  primaryCta: { label: 'Contact Us', href: '#contact' },
   secondaryCta: { label: 'Our Services', href: '#services' },
 }
 
@@ -130,6 +130,15 @@ export const projects = [
     image:
       'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80',
     imageAlt: 'Technology hardware components',
+  },
+  {
+    title: 'Applied Aeronautics',
+    description:
+      'A Wix site for an aerospace engineering consultancy, built around a clean services overview and a direct request-a-consultation call to action.',
+    href: 'https://www.appliedaeronautics.com/',
+    image:
+      'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Aircraft wing in flight above the clouds',
   },
 ]
 
@@ -295,17 +304,47 @@ export const techCategories = [
   },
 ]
 
-// Featured case study. Set to null to hide the whole section.
-// TODO: replace with a real client and their own words before going live.
-export const caseStudy = {
-  quote:
-    'Add the client’s own words here — what they needed, what changed after launch, and what working together was like.',
-  client: 'Client name',
-  services: 'Services: Web Design, Frontend Development',
-  image:
-    'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1000&q=80',
-  imageAlt: 'A finished client website shown on a phone',
-}
+// Featured testimonials. The card cycles through these on a timer instead of
+// showing one fixed quote — set to an empty array (or remove the section in
+// App.jsx) to hide it entirely.
+// TODO: swap in real client quotes and headshots before going live.
+export const testimonials = [
+  {
+    quote:
+      'Pawan turned a messy brief into a storefront that actually converts. The whole build stayed on schedule and every revision came back the same day.',
+    name: 'Elena Duarte',
+    image:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+  },
+  {
+    quote:
+      "Our product pages carry a lot of technical detail and he still made them easy to scan. Support requests dropped within the first month of launch.",
+    name: 'Marcus Feld',
+    image:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+  },
+  {
+    quote:
+      'Booking and checkout finally feel like one flow instead of two bolted-on tools. Clients notice, and so does our conversion rate.',
+    name: 'Priya Nair',
+    image:
+      'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
+  },
+  {
+    quote:
+      "He handed the site back with a CMS I can actually manage myself — new products and pages go up without a single call to a developer.",
+    name: 'Gavin Ross',
+    image:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+  },
+  {
+    quote:
+      'A huge catalogue that used to be a headache to maintain is now organised and quick to update. Exactly what we needed for a technical audience.',
+    name: 'Ana Whitfield',
+    image:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+  },
+]
 
 export const contact = {
   title: "Let's build something great together.",
